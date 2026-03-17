@@ -1,0 +1,15 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+OPENAI_API_KEY   = os.getenv("OPENAI_API_KEY") or os.getenv("Openai_api_key") or ""
+MILVUS_TOKEN     = os.getenv("MILVUS_TOKEN",     "")
+CLIENTE_ID       = os.getenv("CLIENTE_ID",       "")
+CATEGORIA_ID     = os.getenv("CATEGORIA_ID",     "")
+WHATSAPP_SUPORTE = os.getenv("WHATSAPP_SUPORTE", "5511999999999")
+
+# Digisac (webhook)
+DIGISAC_URL       = os.getenv("DIGISAC_URL",       "https://bravoti.digisac.app/api/v1")
+DIGISAC_TOKEN     = os.getenv("DIGISAC_TOKEN",     "") or os.getenv("DIGISAC_ACCESS_TOKEN", "")
+DIGISAC_SERVICE_ID = os.getenv("DIGISAC_SERVICE_ID", "bd6dc860-b325-4b1f-aaa8-8f3d9ad8ffe6")

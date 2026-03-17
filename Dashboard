@@ -1,0 +1,241 @@
+"""
+dashboard.py — Painel administrativo do Nino v.1
+Execute com: streamlit run dashboard.py
+"""
+
+import streamlit as st
+import json
+import os
+from collections import Counter
+from datetime import datetime, timedelta
+import sys
+
+sys.path.insert(0, os.path.dirname(__file__))
+from nino_core import carregar_todas_metricas, listar_solucoes_pendentes, MEMORIA_DIR
+
+# ─────────────────────────────────────────
+# CONFIG
+# ─────────────────────────────────────────
+st.set_page_config(
+    page_title="Nino — Dashboard",
+    page_icon="📊",
+    layout="wide"
+)
+
+st.markdown("""
+    <style>
+        .metric-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            border-left: 4px solid #CC0000;
+        }
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #111;
+        }
+        .metric-label {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 4px;
+        }
+        .good { border-left-color: #28a745; }
+        .warn { border-left-color: #ffc107; }
+        .danger { border-left-color: #dc3545; }
+    </style>
+""", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────
+# HEADER
+# ─────────────────────────────────────────
+col_logo, col_titulo = st.columns([1, 8])
+with col_titulo:
+    st.markdown("## 📊 Nino v.1 — Painel Administrativo")
+    st.caption(f"Bravo TI · Atualizado em {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+
+st.divider()
+
+# ─────────────────────────────────────────
+# CARREGAR DADOS
+# ─────────────────────────────────────────
+metricas = carregar_todas_metricas()
+
+if metricas["total_atendimentos"] == 0:
+    st.info("📭 Nenhum atendimento registrado ainda. Assim que os usuários interagirem com o Nino, os dados aparecerão aqui.")
+    st.stop()
+
+# ─────────────────────────────────────────
+# CARDS DE MÉTRICAS PRINCIPAIS
+# ─────────────────────────────────────────
+st.markdown("### 📈 Visão Geral")
+
+c1, c2, c3, c4, c5 = st.columns(5)
+
+with c1:
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-value">{metricas['total_atendimentos']}</div>
+        <div class="metric-label">Total de Atendimentos</div>
+    </div>""", unsafe_allow_html=True)
+
+with c2:
+    cor = "good" if metricas['taxa_resolucao'] >= 60 else "warn"
+    st.markdown(f"""
+    <div class="metric-card {cor}">
+        <div class="metric-value">{metricas['taxa_resolucao']}%</div>
+        <div class="metric-label">Taxa de Resolução Automática</div>
+    </div>""", unsafe_allow_html=True)
+
+with c3:
+    st.markdown(f"""
+    <div class="metric-card good">
+        <div class="metric-value">{metricas['resolvidos']}</div>
+        <div class="metric-label">Resolvidos pelo Nino</div>
+    </div>""", unsafe_allow_html=True)
+
+with c4:
+    st.markdown(f"""
+    <div class="metric-card warn">
+        <div class="metric-value">{metricas['escalados']}</div>
+        <div class="metric-label">Escalados para Técnico</div>
+    </div>""", unsafe_allow_html=True)
+
+with c5:
+    estrelas = "⭐" * int(metricas['media_avaliacao']) if metricas['media_avaliacao'] > 0 else "—"
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-value">{metricas['media_avaliacao'] or '—'}</div>
+        <div class="metric-label">Avaliação Média {estrelas}</div>
+    </div>""", unsafe_allow_html=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────
+# GRÁFICOS
+# ─────────────────────────────────────────
+col_graf1, col_graf2 = st.columns(2)
+
+with col_graf1:
+    st.markdown("#### 🗂️ Atendimentos por Categoria")
+    if metricas["categorias"]:
+        cats = dict(sorted(metricas["categorias"].items(), key=lambda x: x[1], reverse=True))
+        labels = list(cats.keys())
+        values = list(cats.values())
+
+        import streamlit as st2
+        chart_data = {"Categoria": labels, "Atendimentos": values}
+
+        # Usando st.bar_chart com dados simples
+        import pandas as pd
+        df_cats = pd.DataFrame({"Atendimentos": cats})
+        st.bar_chart(df_cats)
+    else:
+        st.info("Sem dados de categorias ainda.")
+
+with col_graf2:
+    st.markdown("#### 📅 Atendimentos por Dia (últimos 14 dias)")
+    if metricas["por_dia"]:
+        import pandas as pd
+        hoje = datetime.now()
+        datas = [(hoje - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(13, -1, -1)]
+        valores = [metricas["por_dia"].get(d, 0) for d in datas]
+        df_dias = pd.DataFrame({"Atendimentos": valores}, index=[d[5:] for d in datas])
+        st.line_chart(df_dias)
+    else:
+        st.info("Sem dados por dia ainda.")
+
+st.divider()
+
+# ─────────────────────────────────────────
+# PROBLEMAS MAIS FREQUENTES
+# ─────────────────────────────────────────
+st.markdown("### 🔥 Problemas Mais Relatados")
+
+if metricas["problemas"]:
+    contagem = Counter(metricas["problemas"]).most_common(10)
+    import pandas as pd
+    df_prob = pd.DataFrame(contagem, columns=["Problema", "Ocorrências"])
+    df_prob.index = df_prob.index + 1
+    st.dataframe(df_prob, use_container_width=True, hide_index=False)
+else:
+    st.info("Sem dados de problemas ainda.")
+
+st.divider()
+
+# ─────────────────────────────────────────
+# AVALIAÇÕES
+# ─────────────────────────────────────────
+if metricas["avaliacoes"]:
+    st.markdown("### ⭐ Distribuição de Avaliações")
+    contagem_aval = Counter(metricas["avaliacoes"])
+    import pandas as pd
+    df_aval = pd.DataFrame({
+        "Estrelas": [f"{'⭐'*i} ({i})" for i in range(1, 6)],
+        "Quantidade": [contagem_aval.get(i, 0) for i in range(1, 6)]
+    })
+    st.bar_chart(df_aval.set_index("Estrelas"))
+
+st.divider()
+
+# ─────────────────────────────────────────
+# APRENDIZADO CONTÍNUO
+# ─────────────────────────────────────────
+st.markdown("### 🧠 Aprendizado Contínuo")
+pendentes = listar_solucoes_pendentes()
+
+if pendentes:
+    st.warning(f"📥 **{len(pendentes)} soluções** aplicadas por técnicos aguardando revisão para incorporar à base de conhecimento.")
+
+    for i, item in enumerate(pendentes):
+        with st.expander(f"#{i+1} — {item['problema']} ({item['data']}) | Técnico: {item.get('tecnico','—')}"):
+            st.markdown(f"**Categoria:** {item['categoria']}")
+            st.markdown(f"**Problema:** {item['problema']}")
+            st.markdown(f"**Solução aplicada:**\n{item['solucao']}")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                if st.button(f"✅ Incorporar à base", key=f"inc_{i}"):
+                    st.success("Marque como incorporado manualmente no arquivo aprendizado.json")
+            with col_b:
+                if st.button(f"❌ Descartar", key=f"desc_{i}"):
+                    st.info("Descartado.")
+else:
+    st.success("✅ Nenhuma solução pendente de revisão.")
+
+st.divider()
+
+# ─────────────────────────────────────────
+# ÚLTIMOS ATENDIMENTOS
+# ─────────────────────────────────────────
+st.markdown("### 📋 Últimos Atendimentos")
+
+arquivos = [f for f in os.listdir(MEMORIA_DIR) if f.endswith(".json")] if os.path.exists(MEMORIA_DIR) else []
+todos_atendimentos = []
+
+for arquivo in arquivos:
+    with open(os.path.join(MEMORIA_DIR, arquivo), "r", encoding="utf-8") as f:
+        dados = json.load(f)
+    for a in dados.get("atendimentos", []):
+        todos_atendimentos.append({
+            "Usuário": dados.get("identificador", "—"),
+            "Data": a.get("data", "—"),
+            "Problema": a.get("problema_relatado", "—")[:60],
+            "Categoria": a.get("categoria", "—"),
+            "Status": "✅ Resolvido" if a.get("status") == "resolvido" else "🔧 Escalado",
+            "Avaliação": "⭐" * int(a.get("avaliacao") or 0) or "—"
+        })
+
+if todos_atendimentos:
+    import pandas as pd
+    todos_atendimentos.sort(key=lambda x: x["Data"], reverse=True)
+    df_aten = pd.DataFrame(todos_atendimentos[:50])
+    st.dataframe(df_aten, use_container_width=True, hide_index=True)
+else:
+    st.info("Nenhum atendimento para exibir.")
+
+# ─────────────────────────────────────────
+# RODAPÉ
+# ─────────────────────────────────────────
+st.markdown("---")
+st.caption("Nino v.1 — Bravo TI · Dashboard Administrativo · Dados atualizados em tempo real")
