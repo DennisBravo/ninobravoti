@@ -31,3 +31,7 @@ async def listar_departamento(termo):
     """
     # Stub: integracao real com Graph API
     return None
+
+
+# Alias para compatibilidade (graph_service pode importar listar_departam)
+listar_departam = listar_departamento
